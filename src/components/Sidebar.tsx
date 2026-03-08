@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, Settings, Activity } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, Activity, Target } from 'lucide-react';
 
 const navItems = [
     { to: '/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
     { to: '/console', icon: <Video size={18} />, label: 'Surveillance' },
+    { to: '/agent', icon: <Activity size={18} />, label: 'Call Agent' },
+    { to: '/leads', icon: <Target size={18} />, label: 'Leads' },
     { to: '/settings', icon: <Settings size={18} />, label: 'Settings' },
 ];
 

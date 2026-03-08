@@ -17,9 +17,9 @@ interface IdentifiedPerson {
 interface LogEntry {
     timestamp: string;
     summary: string;
-    results: Record<string, boolean>;
+    results: Record<string, number | boolean>;
     s3_uri?: string;
-    identified_person?: IdentifiedPerson | null;
+    identified_persons?: IdentifiedPerson[] | null;
 }
 
 // Ensure the frontend aims at the FastAPI backend at port 8000
@@ -31,7 +31,7 @@ export default function Console() {
     const [status, setStatus] = useState<'Stopped' | 'Ready' | 'Running'>('Stopped');
     const [events, setEvents] = useState<EventItem[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [latestResults, setLatestResults] = useState<Record<string, boolean>>({});
+    const [latestResults, setLatestResults] = useState<Record<string, number | boolean>>({});
 
     // Library & Search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -437,31 +437,38 @@ export default function Console() {
                                                     </div>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
                                                         {Object.entries(log.results || {}).length > 0 ? (
-                                                            Object.entries(log.results).map(([k, v]) => (
-                                                                <span key={k} style={{ background: v ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.08)', color: v ? '#16a34a' : '#dc2626', padding: '0.15rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, border: `1px solid ${v ? '#bbf7d0' : '#fecaca'}` }}>
-                                                                    {k}: {v ? 'TRUE' : 'FALSE'}
-                                                                </span>
-                                                            ))
+                                                            Object.entries(log.results).map(([k, v]) => {
+                                                                const isDetected = typeof v === 'number' ? v > 0 : !!v;
+                                                                const displayValue = typeof v === 'number' ? (v > 0 ? v.toString() : '0') : (v ? 'TRUE' : 'FALSE');
+                                                                return (
+                                                                    <span key={k} style={{ background: isDetected ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.08)', color: isDetected ? '#16a34a' : '#dc2626', padding: '0.15rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, border: `1px solid ${isDetected ? '#bbf7d0' : '#fecaca'}` }}>
+                                                                        {k}: {displayValue}
+                                                                    </span>
+                                                                );
+                                                            })
                                                         ) : (
                                                             <span style={{ color: '#94a3b8' }}>No events evaluated</span>
                                                         )}
                                                     </div>
                                                     {/* ── Identity Badge ─────────────────── */}
-                                                    {log.identified_person && (
-                                                        <div style={{
-                                                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                                                            marginBottom: '0.35rem',
-                                                            background: log.identified_person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
-                                                            border: `1px solid ${log.identified_person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
-                                                            borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.8rem',
-                                                            color: log.identified_person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
-                                                            fontWeight: 600,
-                                                        }}>
-                                                            {log.identified_person.name === 'Unknown Person' ? '👤' : '🙋'}
-                                                            {log.identified_person.name}
-                                                            {log.identified_person.email && (
-                                                                <span style={{ fontWeight: 400, color: '#6366f1' }}>({log.identified_person.email})</span>
-                                                            )}
+                                                    {log.identified_persons && log.identified_persons.length > 0 && (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                                            {log.identified_persons.map((person, idx) => (
+                                                                <div key={idx} style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                                                    background: person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
+                                                                    border: `1px solid ${person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
+                                                                    borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.8rem',
+                                                                    color: person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
+                                                                    fontWeight: 600,
+                                                                }}>
+                                                                    {person.name === 'Unknown Person' ? '👤' : '🙋'}
+                                                                    {person.name}
+                                                                    {person.email && (
+                                                                        <span style={{ fontWeight: 400, color: '#6366f1' }}>({person.email})</span>
+                                                                    )}
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     )}
                                                     {log.summary && <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.85rem' }}>{log.summary}</div>}
@@ -516,6 +523,8 @@ export default function Console() {
                                             {events.map(ev => {
                                                 const result = latestResults[ev.name];
                                                 const isDef = result !== undefined;
+                                                const isDetected = typeof result === 'number' ? result > 0 : !!result;
+                                                const displayValue = isDef ? (typeof result === 'number' ? (result > 0 ? result.toString() : '0') : (result ? 'TRUE' : 'FALSE')) : 'PENDING';
 
                                                 return (
                                                     <li key={ev.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -529,11 +538,11 @@ export default function Console() {
                                                                 borderRadius: '100px',
                                                                 fontSize: '0.75rem',
                                                                 fontWeight: 700,
-                                                                background: isDef ? (result ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)') : '#f1f5f9',
-                                                                color: isDef ? (result ? '#16a34a' : '#dc2626') : '#94a3b8',
-                                                                border: `1px solid ${isDef ? (result ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`,
+                                                                background: isDef ? (isDetected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)') : '#f1f5f9',
+                                                                color: isDef ? (isDetected ? '#16a34a' : '#dc2626') : '#94a3b8',
+                                                                border: `1px solid ${isDef ? (isDetected ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`,
                                                             }}>
-                                                                {isDef ? (result ? 'TRUE' : 'FALSE') : 'PENDING'}
+                                                                {displayValue}
                                                             </span>
                                                             <button onClick={() => deleteEvent(ev.name)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}>
                                                                 <Trash2 size={16} />
@@ -613,27 +622,35 @@ export default function Console() {
                                                     <td style={{ padding: '1rem', whiteSpace: 'nowrap', color: '#475569' }}>{new Date(row.timestamp).toLocaleString()}</td>
                                                     <td style={{ padding: '1rem' }}>
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                                            {Object.entries(row.results || {}).map(([k, v]) => (
-                                                                <span key={k} style={{ padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, background: v ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)', color: v ? '#16a34a' : '#dc2626', border: `1px solid ${v ? '#bbf7d0' : '#fecaca'}` }}>
-                                                                    {k}: {v ? 'YES' : 'NO'}
-                                                                </span>
-                                                            ))}
+                                                            {Object.entries(row.results || {}).map(([k, v]) => {
+                                                                const isDetected = typeof v === 'number' ? v > 0 : !!v;
+                                                                const displayValue = typeof v === 'number' ? (v > 0 ? v.toString() : '0') : (v ? 'YES' : 'NO');
+                                                                return (
+                                                                    <span key={k} style={{ padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, background: isDetected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)', color: isDetected ? '#16a34a' : '#dc2626', border: `1px solid ${isDetected ? '#bbf7d0' : '#fecaca'}` }}>
+                                                                        {k}: {displayValue}
+                                                                    </span>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </td>
                                                     <td style={{ padding: '1rem' }}>
-                                                        {row.identified_person ? (
-                                                            <span style={{
-                                                                display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                                                                background: row.identified_person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
-                                                                border: `1px solid ${row.identified_person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
-                                                                borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.78rem',
-                                                                color: row.identified_person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
-                                                                fontWeight: 600,
-                                                            }}>
-                                                                {row.identified_person.name === 'Unknown Person' ? '👤' : '🙋'}
-                                                                {row.identified_person.name}
-                                                                {row.identified_person.email && ` · ${row.identified_person.email}`}
-                                                            </span>
+                                                        {row.identified_persons && row.identified_persons.length > 0 ? (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                                {row.identified_persons.map((person, idx) => (
+                                                                    <span key={idx} style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem', width: 'fit-content',
+                                                                        background: person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
+                                                                        border: `1px solid ${person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
+                                                                        borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.78rem',
+                                                                        color: person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
+                                                                        fontWeight: 600,
+                                                                    }}>
+                                                                        {person.name === 'Unknown Person' ? '👤' : '🙋'}
+                                                                        {person.name}
+                                                                        {person.email && <span style={{ fontWeight: 400, marginLeft: '4px' }}>· {person.email}</span>}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
                                                         ) : <span style={{ color: '#cbd5e1' }}>—</span>}
                                                     </td>
                                                     <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>{row.summary}</td>
