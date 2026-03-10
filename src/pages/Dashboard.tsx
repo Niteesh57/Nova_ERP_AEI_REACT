@@ -4,6 +4,7 @@ import {
     BookOpen, Tag, X, Check, Loader2
 } from 'lucide-react';
 import Layout from '../components/Layout';
+import TicketsTab from '../components/Tickets';
 
 const API = 'http://localhost:8000';
 
@@ -44,10 +45,10 @@ function TagBadge({ tag }: { tag: string }) {
     return (
         <span style={{
             display: 'inline-block',
-            background: '#f3f4f6', color: '#374151',
-            padding: '0.15rem 0.6rem', borderRadius: '100px',
-            fontSize: '0.72rem', fontWeight: 600,
-            border: '1px solid #e5e7eb',
+            background: '#e6f2ff', color: '#005a9e',
+            padding: '2px 6px', borderRadius: '4px',
+            fontSize: '12px', fontWeight: 600,
+            border: '1px solid #cce3f5',
         }}>
             {tag}
         </span>
@@ -60,6 +61,7 @@ export default function Dashboard() {
     const [stories, setStories] = useState<Record<number, Story[]>>({});
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'products' | 'tickets'>('products');
 
     // Modals / forms
     const [showProductModal, setShowProductModal] = useState(false);
@@ -224,48 +226,72 @@ export default function Dashboard() {
             {toast && <Toast msg={toast.msg} ok={toast.ok} onClose={() => setToast(null)} />}
 
             {/* Page Header */}
-            <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: '#fff', padding: '16px 24px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div>
-                        <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: '#111', margin: 0 }}>
-                            Product Dashboard
+                        <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#323130', margin: 0, fontFamily: 'Segoe UI, sans-serif' }}>
+                            Dashboard
                         </h1>
-                        <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
-                            Manage product ideas and their user stories
+                        <p style={{ color: '#605e5c', fontSize: '13px', margin: '4px 0 0' }}>
+                            Manage product features, user stories, and support tickets
                         </p>
                     </div>
+                    {activeTab === 'products' && (
+                        <button
+                            onClick={openAddProduct}
+                            style={primaryBtn}
+                        >
+                            <Plus size={16} /> New Epic
+                        </button>
+                    )}
+                </div>
+                
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: '24px' }}>
                     <button
-                        onClick={openAddProduct}
+                        onClick={() => setActiveTab('products')}
                         style={{
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            background: '#111', color: '#fff', border: 'none',
-                            borderRadius: '8px', padding: '0.625rem 1.125rem',
-                            fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
+                            background: 'none', border: 'none', padding: '12px 4px', cursor: 'pointer',
+                            fontSize: '14px', fontWeight: 600, color: activeTab === 'products' ? '#0078d4' : '#605e5c',
+                            borderBottom: activeTab === 'products' ? '2px solid #0078d4' : '2px solid transparent',
                         }}
                     >
-                        <Plus size={16} /> New Product
+                        Product Backlog
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('tickets')}
+                        style={{
+                            background: 'none', border: 'none', padding: '12px 4px', cursor: 'pointer',
+                            fontSize: '14px', fontWeight: 600, color: activeTab === 'tickets' ? '#0078d4' : '#605e5c',
+                            borderBottom: activeTab === 'tickets' ? '2px solid #0078d4' : '2px solid transparent',
+                        }}
+                    >
+                        Tickets
                     </button>
                 </div>
             </div>
+            <div style={{ borderTop: '1px solid #edebe9' }} />
 
             {/* Content */}
-            <div style={{ padding: '2rem', flex: 1 }}>
-                {loading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', color: '#9ca3af' }}>
+            <div style={{ padding: '24px', flex: 1, background: '#faf9f8' }}>
+                {activeTab === 'products' ? (
+                    <>
+                        {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '64px', color: '#a19f9d' }}>
                         <Loader2 size={24} className="spin" /> &nbsp;Loading...
                     </div>
                 ) : products.length === 0 ? (
                     <div style={{
-                        textAlign: 'center', padding: '5rem 2rem',
-                        color: '#9ca3af', background: '#fff',
-                        borderRadius: '12px', border: '1px dashed #d1d5db',
+                        textAlign: 'center', padding: '80px 32px',
+                        color: '#605e5c', background: '#fff',
+                        borderRadius: '4px', border: '1px dashed #c8c6c4',
                     }}>
-                        <BookOpen size={40} style={{ marginBottom: '1rem', opacity: 0.4 }} />
-                        <p style={{ fontWeight: 500, margin: 0 }}>No products yet.</p>
-                        <p style={{ fontSize: '0.875rem', margin: '0.25rem 0 0' }}>Create your first product idea to get started.</p>
+                        <BookOpen size={40} style={{ marginBottom: '16px', opacity: 0.4 }} />
+                        <p style={{ fontWeight: 600, margin: 0, fontSize: '16px', color: '#323130' }}>No epics yet.</p>
+                        <p style={{ fontSize: '13px', margin: '4px 0 0' }}>Create your first epic to get started.</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {products.map(product => (
                             <ProductCard
                                 key={product.id}
@@ -291,29 +317,33 @@ export default function Dashboard() {
                         ))}
                     </div>
                 )}
+                    </>
+                ) : (
+                    <TicketsTab showToast={showToast} products={products} />
+                )}
             </div>
 
             {/* Product Modal */}
             {showProductModal && (
                 <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+                    position: 'fixed', inset: 0, background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(2px)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500,
                 }}>
                     <div style={{
-                        background: '#fff', borderRadius: '16px', padding: '2rem',
-                        width: '480px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+                        background: '#fff', borderRadius: '4px', padding: '24px',
+                        width: '480px', maxWidth: '90vw', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', border: '1px solid #edebe9'
                     }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#111' }}>
-                                {editingProduct ? 'Edit Product' : 'New Product Idea'}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#323130', fontFamily: 'Segoe UI, sans-serif' }}>
+                                {editingProduct ? 'Edit Epic' : 'New Epic'}
                             </h2>
-                            <button onClick={() => setShowProductModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+                            <button onClick={() => setShowProductModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#605e5c' }}>
                                 <X size={20} />
                             </button>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div>
-                                <label style={labelStyle}>Product Idea Name *</label>
+                                <label style={labelStyle}>Epic Title *</label>
                                 <input
                                     value={productForm.idea_name}
                                     onChange={e => setProductForm(p => ({ ...p, idea_name: e.target.value }))}
@@ -326,18 +356,18 @@ export default function Dashboard() {
                                 <textarea
                                     value={productForm.description}
                                     onChange={e => setProductForm(p => ({ ...p, description: e.target.value }))}
-                                    placeholder="Describe the product idea..."
+                                    placeholder="Describe the epic..."
                                     rows={3}
                                     style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
                                 />
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-                            <button onClick={() => setShowProductModal(false)} style={outlineBtn}>Cancel</button>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '24px', justifyContent: 'flex-end' }}>
                             <button onClick={saveProduct} disabled={productSaving} style={primaryBtn}>
-                                {productSaving ? <Loader2 size={14} /> : <Check size={14} />}
+                                {productSaving ? <Loader2 size={14} className="spin" /> : null}
                                 {editingProduct ? 'Update' : 'Create'}
                             </button>
+                            <button onClick={() => setShowProductModal(false)} style={outlineBtn}>Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -375,79 +405,87 @@ function ProductCard({
     onEditStoryChange, onSaveEditStory, onCancelEditStory,
 }: ProductCardProps) {
     return (
-        <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', border: '1px solid #edebe9', borderRadius: '4px', marginBottom: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
             {/* Product Header */}
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                 <button
                     onClick={onToggle}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '2px', flexShrink: 0 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#605e5c', padding: '2px', flexShrink: 0, marginTop: '2px' }}
                 >
-                    {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '1rem', color: '#111', marginBottom: '0.25rem' }}>
-                        {product.idea_name}
+                <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={onToggle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ff7a00', color: '#fff', width: '20px', height: '20px', borderRadius: '2px', flexShrink: 0 }}>
+                            <BookOpen size={12} />
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '15px', color: '#323130' }}>
+                            {product.idea_name}
+                        </div>
                     </div>
-                    <div style={{ fontSize: '0.825rem', color: '#6b7280', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <div style={{ fontSize: '13px', color: '#605e5c', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {product.description}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                     <button onClick={onEdit} style={iconBtn} title="Edit product">
-                        <Pencil size={15} />
+                        <Pencil size={14} />
                     </button>
-                    <button onClick={onDelete} style={{ ...iconBtn, color: '#ef4444' }} title="Delete product">
-                        <Trash2 size={15} />
+                    <button onClick={onDelete} style={{ ...iconBtn, color: '#d13438' }} title="Delete product">
+                        <Trash2 size={14} />
                     </button>
                 </div>
             </div>
 
             {/* Expanded: User Stories */}
             {expanded && (
-                <div style={{ borderTop: '1px solid #f3f4f6', background: '#fafafa', padding: '1rem 1.5rem 1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <div style={{ borderTop: '1px solid #edebe9', borderBottom: '1px solid transparent', background: '#faf9f8', padding: '16px 20px 24px 44px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#605e5c', textTransform: 'uppercase' }}>
                             User Stories ({stories.length})
                         </span>
                         <button
                             onClick={() => onToggleStoryForm(!showAddStory)}
-                            style={{ ...iconBtn, display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600, padding: '0.3rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                            style={{ ...outlineBtn, padding: '4px 8px', fontSize: '12px', color: '#0078d4', borderColor: '#edebe9', background: '#fff' }}
                         >
-                            {showAddStory ? <X size={13} /> : <Plus size={13} />}
-                            {showAddStory ? 'Cancel' : 'Add Story'}
+                            {showAddStory ? <X size={14} /> : <Plus size={14} />}
+                            {showAddStory ? 'Cancel' : 'New Story'}
                         </button>
                     </div>
 
                     {/* Add Story Form */}
                     {showAddStory && (
-                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '1rem', marginBottom: '0.75rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                        <div style={{ background: '#fff', border: '1px solid #0078d4', borderRadius: '4px', padding: '16px', marginBottom: '16px', boxShadow: '0 0 4px rgba(0, 120, 212, 0.2)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 <input
                                     value={storyFormData.title}
                                     onChange={e => onStoryFormChange('title', e.target.value)}
-                                    placeholder="Story title *"
-                                    style={inputStyle}
+                                    placeholder="Enter title"
+                                    style={{ ...inputStyle, fontWeight: 600, fontSize: '14px', border: 'none', borderBottom: '1px solid #edebe9', borderRadius: 0, padding: '4px 0' }}
                                 />
                                 <textarea
                                     value={storyFormData.description}
                                     onChange={e => onStoryFormChange('description', e.target.value)}
-                                    placeholder="Description (optional)..."
-                                    rows={2}
-                                    style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                                    placeholder="Add description..."
+                                    rows={3}
+                                    style={{ ...inputStyle, resize: 'vertical', border: '1px solid #edebe9' }}
                                 />
-                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flex: 1 }}>
-                                        <Tag size={14} color="#9ca3af" />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '250px' }}>
+                                        <Tag size={14} color="#605e5c" />
                                         <input
                                             value={storyFormData.tag}
                                             onChange={e => onStoryFormChange('tag', e.target.value)}
-                                            placeholder="Tag (e.g. React, Backend...)"
-                                            style={{ ...inputStyle, flex: 1, margin: 0 }}
+                                            placeholder="Add tag"
+                                            style={{ ...inputStyle, flex: 1, margin: 0, padding: '4px 8px' }}
                                         />
                                     </div>
-                                    <button onClick={onSaveStory} disabled={storySaving} style={primaryBtn}>
-                                        {storySaving ? <Loader2 size={13} /> : <Check size={13} />} Save
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button onClick={onSaveStory} disabled={storySaving} style={primaryBtn}>
+                                            {storySaving ? <Loader2 size={14} className="spin" /> : null} Save
+                                        </button>
+                                        <button onClick={() => onToggleStoryForm(false)} style={outlineBtn}>Cancel</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -455,11 +493,11 @@ function ProductCard({
 
                     {/* Stories List */}
                     {stories.length === 0 ? (
-                        <div style={{ padding: '1.5rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem' }}>
-                            No user stories yet. Click "+ Add Story" to get started.
+                        <div style={{ padding: '24px', textAlign: 'center', color: '#a19f9d', fontSize: '13px', background: '#fff', border: '1px dashed #c8c6c4', borderRadius: '4px' }}>
+                            No user stories defined. Create one to start tracking work.
                         </div>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {stories.map(story => (
                                 <StoryRow
                                     key={story.id}
@@ -498,35 +536,37 @@ interface StoryRowProps {
 function StoryRow({ story, editing, editingStory, storySaving, onEdit, onDelete, onEditChange, onSaveEdit, onCancelEdit }: StoryRowProps) {
     if (editing && editingStory) {
         return (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.875rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ background: '#fff', border: '1px solid #0078d4', borderRadius: '4px', padding: '16px', boxShadow: '0 0 4px rgba(0, 120, 212, 0.2)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <input
                         value={editingStory.title}
                         onChange={e => onEditChange('title', e.target.value)}
-                        placeholder="Story title"
-                        style={inputStyle}
+                        placeholder="Enter title"
+                        style={{ ...inputStyle, fontWeight: 600, fontSize: '14px', border: 'none', borderBottom: '1px solid #edebe9', borderRadius: 0, padding: '4px 0' }}
                     />
                     <textarea
                         value={editingStory.description || ''}
                         onChange={e => onEditChange('description', e.target.value)}
-                        placeholder="Description..."
-                        rows={2}
-                        style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                        placeholder="Add description..."
+                        rows={3}
+                        style={{ ...inputStyle, resize: 'vertical', border: '1px solid #edebe9' }}
                     />
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flex: 1 }}>
-                            <Tag size={14} color="#9ca3af" />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '250px' }}>
+                            <Tag size={14} color="#605e5c" />
                             <input
                                 value={editingStory.tag || ''}
                                 onChange={e => onEditChange('tag', e.target.value)}
-                                placeholder="Tag..."
-                                style={{ ...inputStyle, flex: 1, margin: 0 }}
+                                placeholder="Add tag"
+                                style={{ ...inputStyle, flex: 1, margin: 0, padding: '4px 8px' }}
                             />
                         </div>
-                        <button onClick={onSaveEdit} disabled={storySaving} style={primaryBtn}>
-                            {storySaving ? <Loader2 size={13} /> : <Check size={13} />} Update
-                        </button>
-                        <button onClick={onCancelEdit} style={outlineBtn}>Cancel</button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={onSaveEdit} disabled={storySaving} style={primaryBtn}>
+                                {storySaving ? <Loader2 size={14} className="spin" /> : null} Update
+                            </button>
+                            <button onClick={onCancelEdit} style={outlineBtn}>Cancel</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -535,25 +575,28 @@ function StoryRow({ story, editing, editingStory, storySaving, onEdit, onDelete,
 
     return (
         <div style={{
-            background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px',
-            padding: '0.875rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+            background: '#fff', border: '1px solid #edebe9', borderLeft: '3px solid #0078d4', borderRadius: '4px',
+            padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px',
         }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0078d4', color: '#fff', width: '20px', height: '20px', borderRadius: '2px', flexShrink: 0, marginTop: '2px' }}>
+                <BookOpen size={12} />
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#111', marginBottom: '0.2rem' }}>
+                <div style={{ fontWeight: 600, fontSize: '14px', color: '#201f1e', marginBottom: '2px' }}>
                     {story.title}
                 </div>
                 {story.description && (
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.4rem' }}>
+                    <div style={{ fontSize: '13px', color: '#605e5c', marginBottom: '6px', whiteSpace: 'pre-wrap' }}>
                         {story.description}
                     </div>
                 )}
                 {story.tag && <TagBadge tag={story.tag} />}
             </div>
-            <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-                <button onClick={onEdit} style={iconBtn} title="Edit story">
+            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                <button onClick={onEdit} style={iconBtn} title="Edit User Story">
                     <Pencil size={14} />
                 </button>
-                <button onClick={onDelete} style={{ ...iconBtn, color: '#ef4444' }} title="Delete story">
+                <button onClick={onDelete} style={{ ...iconBtn, color: '#d13438' }} title="Delete User Story">
                     <Trash2 size={14} />
                 </button>
             </div>
@@ -563,35 +606,36 @@ function StoryRow({ story, editing, editingStory, storySaving, onEdit, onDelete,
 
 // ── Shared Styles ─────────────────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: '0.8rem', fontWeight: 600,
-    color: '#374151', marginBottom: '0.375rem',
+    display: 'block', fontSize: '13px', fontWeight: 600,
+    color: '#323130', marginBottom: '6px', fontFamily: '"Segoe UI", sans-serif'
 };
 
 const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '0.6rem 0.875rem',
-    border: '1px solid #d1d5db', borderRadius: '8px',
-    fontSize: '0.875rem', color: '#111', background: '#fff',
-    outline: 'none', boxSizing: 'border-box',
+    width: '100%', padding: '6px 10px',
+    border: '1px solid #8a8886', borderRadius: '2px',
+    fontSize: '14px', color: '#323130', background: '#fff',
+    outline: 'none', boxSizing: 'border-box', fontFamily: '"Segoe UI", sans-serif',
+    transition: 'border-color 0.1s'
 };
 
 const primaryBtn: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: '0.375rem',
-    background: '#111', color: '#fff', border: 'none',
-    borderRadius: '8px', padding: '0.55rem 1rem',
-    fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
-    whiteSpace: 'nowrap',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+    background: '#0078d4', color: '#fff', border: '1px solid transparent',
+    borderRadius: '2px', padding: '6px 16px',
+    fontWeight: 600, fontSize: '14px', cursor: 'pointer',
+    whiteSpace: 'nowrap', fontFamily: '"Segoe UI", sans-serif'
 };
 
 const outlineBtn: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: '0.375rem',
-    background: '#fff', color: '#374151',
-    border: '1px solid #d1d5db', borderRadius: '8px',
-    padding: '0.55rem 1rem', fontWeight: 600, fontSize: '0.8rem',
-    cursor: 'pointer', whiteSpace: 'nowrap',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+    background: '#fff', color: '#323130',
+    border: '1px solid #8a8886', borderRadius: '2px',
+    padding: '6px 16px', fontWeight: 600, fontSize: '14px',
+    cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: '"Segoe UI", sans-serif'
 };
 
 const iconBtn: React.CSSProperties = {
     background: 'none', border: 'none', cursor: 'pointer',
-    color: '#6b7280', padding: '0.25rem', borderRadius: '4px',
-    display: 'flex', alignItems: 'center',
+    color: '#605e5c', padding: '6px', borderRadius: '2px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
 };

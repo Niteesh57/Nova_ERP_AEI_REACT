@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, Settings, Activity, Target } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, Activity, Target, Code2 } from 'lucide-react';
 
 const navItems = [
     { to: '/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
     { to: '/console', icon: <Video size={18} />, label: 'Surveillance' },
     { to: '/agent', icon: <Activity size={18} />, label: 'Call Agent' },
     { to: '/leads', icon: <Target size={18} />, label: 'Leads' },
+    { to: '/functions', icon: <Code2 size={18} />, label: 'Functions' },
     { to: '/settings', icon: <Settings size={18} />, label: 'Settings' },
 ];
 
@@ -33,7 +34,7 @@ export default function Sidebar() {
                 gap: '0.625rem',
             }}>
                 <div style={{
-                    background: '#111',
+                    background: '#ea580c',
                     borderRadius: '8px',
                     width: '32px',
                     height: '32px',
@@ -68,8 +69,8 @@ export default function Sidebar() {
                             textDecoration: 'none',
                             fontWeight: isActive ? 600 : 500,
                             fontSize: '0.875rem',
-                            color: isActive ? '#111' : '#6b7280',
-                            background: isActive ? '#f3f4f6' : 'transparent',
+                            color: isActive ? '#ea580c' : '#6b7280',
+                            background: isActive ? '#fff7ed' : 'transparent',
                             transition: 'all 0.15s ease',
                         })}
                     >

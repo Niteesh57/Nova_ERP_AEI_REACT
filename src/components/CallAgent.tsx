@@ -31,6 +31,7 @@ export default function CallAgent() {
   
   const audioContext = useRef<AudioContext | null>(null);
   const audioInput = useRef<MediaStreamAudioSourceNode | null>(null);
+  const currentAudioSource = useRef<AudioBufferSourceNode | null>(null);
   const scriptProcessor = useRef<ScriptProcessorNode | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
   const scheduledTime = useRef<number>(0); // For audio queue playback scheduling
@@ -126,6 +127,18 @@ export default function CallAgent() {
               if (msg.type === "interrupt") {
                   console.log("Agent interrupted");
                   setIsAgentSpeaking(false);
+                  
+                  // Stop the currently playing audio buffer immediately
+                  if (currentAudioSource.current) {
+                      currentAudioSource.current.stop();
+                      currentAudioSource.current = null;
+                  }
+                  
+                  // Reset the scheduled time so the next response starts fresh
+                  if (audioContext.current) {
+                      scheduledTime.current = audioContext.current.currentTime;
+                  }
+                  
               } else if (msg.type === "text") {
                   console.log("Agent Text:", msg.content);
                   // We simulate history logging here, since DB inserts via HTTP aren't happening simultaneously right now
@@ -209,6 +222,8 @@ export default function CallAgent() {
        const source = audioContext.current.createBufferSource();
        source.buffer = audioBuffer;
        source.connect(audioContext.current.destination);
+       
+       currentAudioSource.current = source; // store it so it can be interrupted
 
        // Schedule gapless playback
        if (scheduledTime.current < audioContext.current.currentTime) {
@@ -351,8 +366,8 @@ export default function CallAgent() {
                         <div className="pulse-ring list-ring" style={{ width: `${100 + voiceVolume}%`, height: `${100 + voiceVolume}%`, opacity: 0.2 }}></div>
                     )}
                     
-                    <div style={{ width: '120px', height: '120px', background: '#1a1a2e', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 10px 30px rgba(26,26,46,0.2)' }}>
-                        {isAgentSpeaking ? <AudioLines size={50} color="#fff" /> : <Bot size={50} color="#fff" />}
+                    <div style={{ width: '120px', height: '120px', background: '#fff', border: '2px solid #ea580c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 4px 12px rgba(234,88,12,0.15)' }}>
+                        {isAgentSpeaking ? <AudioLines size={50} color="#ea580c" /> : <Bot size={50} color="#ea580c" />}
                     </div>
                 </div>
 
@@ -372,14 +387,14 @@ export default function CallAgent() {
                 onClick={toggleStreaming}
                 style={{
                     width: '72px', height: '72px', borderRadius: '50%',
-                    background: isRecording ? '#ef4444' : '#1a1a2e',
+                    background: isRecording ? '#ef4444' : '#2563eb',
                     color: '#fff', border: 'none', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
                     transition: 'all 0.3s ease'
                 }}
             >
-                {isRecording ? <Square size={28} fill="#fff" /> : <Mic size={28} />}
+                {isRecording ? <Square size={28} fill="#fff" /> : <Mic size={28} color="#fff" />}
             </button>
         </div>
 

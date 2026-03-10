@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Activity, Camera, Square as StopCircle, Plus, Trash2 } from 'lucide-react';
+import { Activity, Camera, Square as StopCircle, Plus, Trash2, X, History, Users } from 'lucide-react';
 import Layout from '../components/Layout';
 import '../index.css';
 
@@ -7,9 +7,11 @@ import '../index.css';
 interface EventItem {
     name: string;
     description: string;
+    authorized_employees?: string[] | null;
 }
 
 interface IdentifiedPerson {
+    id?: number;
     name: string;
     email: string | null;
 }
@@ -20,9 +22,9 @@ interface LogEntry {
     results: Record<string, number | boolean>;
     s3_uri?: string;
     identified_persons?: IdentifiedPerson[] | null;
+    alerts?: string[] | null;
 }
 
-// Ensure the frontend aims at the FastAPI backend at port 8000
 const API_BASE = 'http://localhost:8000';
 const WS_URL = 'ws://localhost:8000/ws';
 
@@ -30,19 +32,20 @@ export default function Console() {
     // Core state
     const [status, setStatus] = useState<'Stopped' | 'Ready' | 'Running'>('Stopped');
     const [events, setEvents] = useState<EventItem[]>([]);
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [latestResults, setLatestResults] = useState<Record<string, number | boolean>>({});
+    
+    // UI Modal states
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-    // Library & Search state
-    const [searchQuery, setSearchQuery] = useState('');
-    const [libraryEvents, setLibraryEvents] = useState<EventItem[]>([]);
-    const [selectedTriggers, setSelectedTriggers] = useState<Set<string>>(new Set());
-    const [activeTab, setActiveTab] = useState<'live' | 'history'>('live');
+    // Data state
+    const [employees, setEmployees] = useState<IdentifiedPerson[]>([]);
     const [history, setHistory] = useState<LogEntry[]>([]);
 
     // New event form state
     const [newEventName, setNewEventName] = useState('');
     const [newEventDesc, setNewEventDesc] = useState('');
+    const [newEventAuthEmps, setNewEventAuthEmps] = useState<string[]>([]); // Array of names
+    const [employeeSearch, setEmployeeSearch] = useState('');
 
     // Refs for media and polling
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,10 +60,9 @@ export default function Console() {
     useEffect(() => {
         loadEvents();
         checkStatus();
-        searchLibrary(''); // Initial load of triggers
+        loadEmployees(); 
 
         return () => {
-            // Cleanup
             if (wsRef.current) wsRef.current.close();
             stopSurveillance(true);
         };
@@ -69,18 +71,14 @@ export default function Console() {
     // ── WebSocket ──────────────────────────────────────────────────────────
     const connectWS = () => {
         if (!isRecordingRef.current) return;
-
         if (wsRef.current) wsRef.current.close();
+        
         wsRef.current = new WebSocket(WS_URL);
-
         wsRef.current.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                if (data.type === 'event_result') {
-                    setLatestResults(data.results || {});
-                    setLogs(prev => [data, ...prev].slice(0, 50));
-                } else if (data.error) {
-                    setLogs(prev => [{ timestamp: new Date().toISOString(), summary: `⚠️ Server Error: ${data.error}`, results: {} }, ...prev].slice(0, 50));
+                if (data.error) {
+                    console.error("Server Error:", data.error);
                 }
             } catch (err) {
                 console.error("WS Parse error", err);
@@ -89,7 +87,7 @@ export default function Console() {
 
         wsRef.current.onclose = () => {
             if (isRecordingRef.current) {
-                setTimeout(connectWS, 3000); // Reconnect loop
+                setTimeout(connectWS, 3000); 
             }
         };
     };
@@ -108,56 +106,12 @@ export default function Console() {
     const loadEvents = async () => {
         try {
             const res = await fetch(`${API_BASE}/events/`);
-            if (!res.ok) {
-                setEvents([]);
-                return;
-            }
+            if (!res.ok) { setEvents([]); return; }
             const data = await res.json();
             setEvents(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to load events", err);
             setEvents([]);
-        }
-    };
-
-    const searchLibrary = async (q: string) => {
-        try {
-            const res = await fetch(`${API_BASE}/events/search?q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            setLibraryEvents(data);
-        } catch (err) {
-            console.error("Search failed", err);
-        }
-    };
-
-    useEffect(() => {
-        const timer = setTimeout(() => searchLibrary(searchQuery), 300);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
-
-    const toggleTriggerSelection = (name: string) => {
-        setSelectedTriggers(prev => {
-            const next = new Set(prev);
-            if (next.has(name)) next.delete(name);
-            else next.add(name);
-            return next;
-        });
-    };
-
-    const activateSelected = async () => {
-        if (selectedTriggers.size === 0) return;
-        try {
-            const res = await fetch(`${API_BASE}/events/activate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(Array.from(selectedTriggers))
-            });
-            if (res.ok) {
-                setSelectedTriggers(new Set());
-                loadEvents();
-            }
-        } catch (err) {
-            console.error("Activation failed", err);
         }
     };
 
@@ -171,21 +125,41 @@ export default function Console() {
         }
     };
 
+    const loadEmployees = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/employees/`);
+            const data = await res.json();
+            setEmployees(data || []);
+        } catch (err) {
+            console.error("Failed to load employees", err);
+        }
+    };
+
+
+
     const addEvent = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newEventName || !newEventDesc) return;
+        
+        const emps = newEventAuthEmps;
 
         try {
             const res = await fetch(`${API_BASE}/events/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newEventName, description: newEventDesc })
+                body: JSON.stringify({ 
+                    name: newEventName, 
+                    description: newEventDesc,
+                    authorized_employees: emps.length > 0 ? emps : null
+                })
             });
             if (res.ok) {
                 setNewEventName('');
                 setNewEventDesc('');
+                setNewEventAuthEmps([]);
+                setEmployeeSearch('');
                 loadEvents();
-                searchLibrary(''); // Refresh library
+                setShowAddModal(false);
             } else {
                 const err = await res.json();
                 alert(err.detail || 'Error adding event');
@@ -199,8 +173,7 @@ export default function Console() {
     const deleteEvent = async (name: string) => {
         try {
             await fetch(`${API_BASE}/events/${name}`, { method: 'DELETE' });
-            loadEvents();
-            searchLibrary(''); // Refresh library
+            loadEvents(); 
         } catch (e) {
             console.error(e);
         }
@@ -215,37 +188,26 @@ export default function Console() {
             }
 
             let mimeType = 'video/webm; codecs=vp9';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm';
-            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
 
             const recorder = new MediaRecorder(stream, { mimeType });
             mediaRecorderRef.current = recorder;
 
             recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    recordedChunksRef.current.push(e.data);
-                }
+                if (e.data.size > 0) recordedChunksRef.current.push(e.data);
             };
 
             recorder.onstop = () => {
                 const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-                recordedChunksRef.current = []; // Reset
-
-                // If we are still "Running", kick off next chunk immediately
+                recordedChunksRef.current = []; 
                 if (isRecordingRef.current) {
                     recorder.start();
                     setTimeout(() => {
-                        if (isRecordingRef.current && recorder.state === 'recording') {
-                            recorder.stop();
-                        }
+                        if (isRecordingRef.current && recorder.state === 'recording') recorder.stop();
                     }, CHUNK_MS);
                 }
-
-                // Upload the finished chunk
                 uploadChunk(blob);
             };
-
             return true;
         } catch (err) {
             console.error("Camera access denied or unavailable", err);
@@ -259,17 +221,13 @@ export default function Console() {
         formData.append('file', blob, 'surveillance_chunk.webm');
         try {
             await fetch(`${API_BASE}/surveillance/upload`, {
-                method: 'POST',
-                body: formData
+                method: 'POST', body: formData
             });
-        } catch (err) {
-            console.error("Upload failed", err);
-        }
+        } catch (err) { console.error("Upload failed", err); }
     };
 
     const startSurveillance = async () => {
         if (status === 'Running') return;
-
         const camReady = await initCamera();
         if (!camReady) return;
 
@@ -283,9 +241,7 @@ export default function Console() {
             if (rec) {
                 rec.start();
                 setTimeout(() => {
-                    if (isRecordingRef.current && rec.state === 'recording') {
-                        rec.stop();
-                    }
+                    if (isRecordingRef.current && rec.state === 'recording') rec.stop();
                 }, CHUNK_MS);
             }
         } catch (err) {
@@ -296,17 +252,12 @@ export default function Console() {
 
     const stopSurveillance = async (isUnmounting = false) => {
         isRecordingRef.current = false;
-
         if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
         }
-
         const rec = mediaRecorderRef.current;
-
-        if (rec && rec.state !== 'inactive') {
-            rec.stop();
-        }
+        if (rec && rec.state !== 'inactive') rec.stop();
 
         if (!isUnmounting && videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
@@ -318,359 +269,277 @@ export default function Console() {
             try {
                 await fetch(`${API_BASE}/surveillance/stop`, { method: 'POST' });
                 setStatus('Stopped');
-            } catch {
-                // Ignore on cleanup
-            }
+            } catch { /* Ignore */ }
         }
+    };
+
+    // --- Helpers for Styling ---
+    // Azure CLI / Microsoft style: clean, plain, mostly white backgrounds, black text, sparse thin borders, #f97316 (orange) for accents
+    const azureModalStyle: React.CSSProperties = {
+        position: 'fixed' as const, top: 0, left: 0, width: '100%', height: '100%',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2rem'
+    };
+    
+    const azureModalContentStyle: React.CSSProperties = {
+        background: '#ffffff',
+        border: '1px solid #d1d5db',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+        width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto',
+        borderRadius: '0px', 
+        display: 'flex', flexDirection: 'column'
+    };
+
+    const orangeBtn = {
+        backgroundColor: '#2563eb', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem',
+        fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem'
+    };
+
+    const darkBtn = {
+        backgroundColor: '#2563eb', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem',
+        fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem'
+    };
+
+    const outlineBtn = {
+        backgroundColor: 'transparent', color: '#111827', border: '1px solid #d1d5db', padding: '0.6rem 1.2rem',
+        fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem'
     };
 
     return (
         <Layout>
-            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f6f8' }}>
-
-                {/* Navbar */}
-                <nav className="navbar" style={{ position: 'sticky', top: 0, padding: '1rem 0', background: '#1a1a2e', borderBottom: '1px solid #e2e8f0', zIndex: 100 }}>
-                    <div className="container nav-content">
-                        <div className="logo">
-                            <div className="logo-icon-wrap">
-                                <Activity size={18} strokeWidth={3} style={{ color: '#fff' }} />
-                            </div>
-                            <span style={{ color: '#fff', fontWeight: 700 }}>Live Surveillance</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                            <div className="badge" style={{ marginBottom: 0, border: `1px solid ${status === 'Running' ? '#22c55e' : '#cbd5e1'}`, color: status === 'Running' ? '#fff' : '#64748b', background: status === 'Running' ? '#22c55e' : '#e2e8f0' }}>
-                                {status === 'Running' ? '● Recording' : status}
-                            </div>
-                        </div>
+            {/* FULL SCREEN SURVEILLANCE LAYER */}
+            <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 60px)', background: '#ffffff', overflow: 'hidden' }}>
+                
+                {/* Navbar within the frame */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, borderBottom: '1px solid #e5e7eb', background: 'rgba(255,255,255,0.95)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <Activity color="#f97316" size={24} />
+                        <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#111827' }}>Live Surveillance Console</h1>
+                        <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem', border: `1px solid ${status === 'Running' ? '#f97316' : '#d1d5db'}`, color: status === 'Running' ? '#f97316' : '#6b7280' }}>
+                            {status === 'Running' ? '● RECORDING' : 'STOPPED'}
+                        </span>
                     </div>
-                </nav>
-
-                <div className="container" style={{ padding: '1rem 2rem' }}>
-                    <div style={{ display: 'flex', gap: '1rem', borderBottom: '2px solid #e2e8f0', marginBottom: '2rem' }}>
-                        <button
-                            onClick={() => setActiveTab('live')}
-                            style={{ padding: '0.75rem 1.5rem', background: 'none', border: 'none', color: activeTab === 'live' ? '#1a1a2e' : '#94a3b8', fontWeight: 700, borderBottom: activeTab === 'live' ? '3px solid #1a1a2e' : 'none', cursor: 'pointer', fontSize: '0.95rem' }}
-                        >
-                            📹 Live Surveillance
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button onClick={() => setShowAddModal(true)} style={orangeBtn}>
+                            <Plus size={16} /> Add Event
                         </button>
-                        <button
-                            onClick={() => { setActiveTab('history'); loadHistory(); }}
-                            style={{ padding: '0.75rem 1.5rem', background: 'none', border: 'none', color: activeTab === 'history' ? '#1a1a2e' : '#94a3b8', fontWeight: 700, borderBottom: activeTab === 'history' ? '3px solid #1a1a2e' : 'none', cursor: 'pointer', fontSize: '0.95rem' }}
-                        >
-                            🗂 Detection History
+                        <button onClick={() => { setShowHistoryModal(true); loadHistory(); }} style={outlineBtn}>
+                            <History size={16} color="#6b7280" /> View History
                         </button>
                     </div>
                 </div>
 
-                {/* Main Content */}
-                <main className="container" style={{ padding: '0 2rem 2rem', flex: 1 }}>
+                <style>{`
+                    @keyframes pulse {
+                        0% { opacity: 1; transform: scale(1); }
+                        50% { opacity: 0.3; transform: scale(0.9); }
+                        100% { opacity: 1; transform: scale(1); }
+                    }
+                `}</style>
+                {/* Video Area Full Width */}
+                <div style={{ position: 'absolute', top: '70px', left: '2rem', right: '2rem', bottom: '2rem', background: '#000', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <video
+                        ref={videoRef}
+                        autoPlay muted playsInline
+                        // DSLR style contrast/greyscale hint, fit cover to fill screen
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'Running' ? 'block' : 'none' /*, filter: 'contrast(1.05) brightness(0.95)'*/ }}
+                    />
+                    
+                    {/* DSLR Overlay Wrapper */}
+                    {status === 'Running' && (
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', padding: '2rem', color: '#fff', fontFamily: 'monospace', zIndex: 5 }}>
+                            {/* REC & Timer */}
+                            <div style={{ position: 'absolute', top: '2rem', left: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite' }} />
+                                <span style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.1em' }}>REC</span>
+                                <span style={{ fontSize: '1.25rem', marginLeft: '1rem', fontVariantNumeric: 'tabular-nums' }}>
+                                    {new Date().toISOString().substring(11, 19)}
+                                </span>
+                            </div>
 
-                    {activeTab === 'live' ? (
-                        <div className="grid-2" style={{ gap: '2rem', alignItems: 'start' }}>
-
-                            {/* Left Column: Video & Controls */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                        <h3 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1a1a2e' }}>
-                                            <Camera size={20} /> Live Client Video
-                                        </h3>
-                                    </div>
-
-                                    <div style={{
-                                        width: '100%',
-                                        aspectRatio: '16/9',
-                                        background: '#1a1a2e',
-                                        borderRadius: '16px',
-                                        overflow: 'hidden',
-                                        position: 'relative',
-                                        border: '1px solid #e2e8f0'
-                                    }}>
-                                        <video
-                                            ref={videoRef}
-                                            autoPlay
-                                            muted
-                                            playsInline
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'Running' ? 'block' : 'none' }}
-                                        />
-                                        {status !== 'Running' && (
-                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', flexDirection: 'column', gap: '1rem' }}>
-                                                <Camera size={48} style={{ opacity: 0.5 }} />
-                                                <p>Start surveillance to access webcam</p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                                        <button
-                                            onClick={startSurveillance}
-                                            disabled={status === 'Running'}
-                                            className="btn btn-primary"
-                                            style={{ flex: 1, opacity: status === 'Running' ? 0.5 : 1 }}
-                                        >
-                                            ▶ Start
-                                        </button>
-                                        <button
-                                            onClick={() => stopSurveillance()}
-                                            disabled={status !== 'Running'}
-                                            className="btn btn-outline"
-                                            style={{ flex: 1, borderColor: status === 'Running' ? '#ef4444' : 'var(--border)', color: status === 'Running' ? '#ef4444' : 'inherit' }}
-                                        >
-                                            <StopCircle size={18} /> Stop
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Results Log */}
-                                <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#1a1a2e' }}>📋 Nova Detection Log</h3>
-                                    <div style={{ maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        {logs.length === 0 ? (
-                                            <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
-                                                No results yet. Start surveillance and wait 30 seconds.
-                                            </div>
-                                        ) : (
-                                            logs.map((log, i) => (
-                                                <div key={i} style={{ background: '#f8fafc', borderLeft: '4px solid #1a1a2e', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.9rem' }}>
-                                                    <div style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                                                        🕐 {new Date(log.timestamp).toLocaleTimeString()}
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                                        {Object.entries(log.results || {}).length > 0 ? (
-                                                            Object.entries(log.results).map(([k, v]) => {
-                                                                const isDetected = typeof v === 'number' ? v > 0 : !!v;
-                                                                const displayValue = typeof v === 'number' ? (v > 0 ? v.toString() : '0') : (v ? 'TRUE' : 'FALSE');
-                                                                return (
-                                                                    <span key={k} style={{ background: isDetected ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.08)', color: isDetected ? '#16a34a' : '#dc2626', padding: '0.15rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600, border: `1px solid ${isDetected ? '#bbf7d0' : '#fecaca'}` }}>
-                                                                        {k}: {displayValue}
-                                                                    </span>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            <span style={{ color: '#94a3b8' }}>No events evaluated</span>
-                                                        )}
-                                                    </div>
-                                                    {/* ── Identity Badge ─────────────────── */}
-                                                    {log.identified_persons && log.identified_persons.length > 0 && (
-                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                                                            {log.identified_persons.map((person, idx) => (
-                                                                <div key={idx} style={{
-                                                                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                                                                    background: person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
-                                                                    border: `1px solid ${person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
-                                                                    borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.8rem',
-                                                                    color: person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
-                                                                    fontWeight: 600,
-                                                                }}>
-                                                                    {person.name === 'Unknown Person' ? '👤' : '🙋'}
-                                                                    {person.name}
-                                                                    {person.email && (
-                                                                        <span style={{ fontWeight: 400, color: '#6366f1' }}>({person.email})</span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {log.summary && <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.85rem' }}>{log.summary}</div>}
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
+                            {/* Camera Info Top Right */}
+                            <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '1.2rem', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                                <span>F2.8</span>
+                                <span>1/60</span>
+                                <span>ISO 800</span>
+                                <div style={{ border: '2px solid #fff', width: '34px', height: '16px', padding: '2px', borderRadius: '2px' }}>
+                                    <div style={{ background: '#fff', width: '75%', height: '100%' }} />
                                 </div>
                             </div>
 
-                            {/* Right Column: Events Configuration */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1a1a2e' }}>
-                                        <Plus size={20} /> Add Event Trigger
-                                    </h3>
-                                    <form onSubmit={addEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', color: '#475569', fontWeight: 600 }}>Event Name</label>
-                                            <input
-                                                type="text"
-                                                value={newEventName}
-                                                onChange={e => setNewEventName(e.target.value)}
-                                                placeholder="e.g. person_opening_door"
-                                                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#1a1a2e', outline: 'none', boxSizing: 'border-box' }}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', color: '#475569', fontWeight: 600 }}>Description</label>
-                                            <input
-                                                type="text"
-                                                value={newEventDesc}
-                                                onChange={e => setNewEventDesc(e.target.value)}
-                                                placeholder="e.g. A person is opening the door"
-                                                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#1a1a2e', outline: 'none', boxSizing: 'border-box' }}
-                                            />
-                                        </div>
-                                        <button type="submit" style={{ marginTop: '0.5rem', padding: '0.75rem', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-                                            + Add Event
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: '#1a1a2e' }}>⚡ Active Events</h3>
-                                    {events.length === 0 ? (
-                                        <div style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
-                                            No events configured yet.
-                                        </div>
-                                    ) : (
-                                        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            {events.map(ev => {
-                                                const result = latestResults[ev.name];
-                                                const isDef = result !== undefined;
-                                                const isDetected = typeof result === 'number' ? result > 0 : !!result;
-                                                const displayValue = isDef ? (typeof result === 'number' ? (result > 0 ? result.toString() : '0') : (result ? 'TRUE' : 'FALSE')) : 'PENDING';
-
-                                                return (
-                                                    <li key={ev.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                        <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
-                                                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1a1a2e' }}>{ev.name}</div>
-                                                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.description}</div>
-                                                        </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <span style={{
-                                                                padding: '0.25rem 0.75rem',
-                                                                borderRadius: '100px',
-                                                                fontSize: '0.75rem',
-                                                                fontWeight: 700,
-                                                                background: isDef ? (isDetected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)') : '#f1f5f9',
-                                                                color: isDef ? (isDetected ? '#16a34a' : '#dc2626') : '#94a3b8',
-                                                                border: `1px solid ${isDef ? (isDetected ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`,
-                                                            }}>
-                                                                {displayValue}
-                                                            </span>
-                                                            <button onClick={() => deleteEvent(ev.name)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}>
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
-                                    )}
-                                </div>
-
-                                <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1a1a2e' }}>
-                                        📚 Triggers Library
-                                    </h3>
-                                    <input
-                                        type="text"
-                                        placeholder="Search library..."
-                                        value={searchQuery}
-                                        onChange={e => setSearchQuery(e.target.value)}
-                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#1a1a2e', marginBottom: '1rem', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                                    />
-                                    <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                        {libraryEvents.length === 0 ? (
-                                            <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>No results</p>
-                                        ) : (
-                                            libraryEvents.map(ev => {
-                                                const isActive = events.some(e => e.name === ev.name);
-                                                return (
-                                                    <div key={ev.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f8fafc', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            disabled={isActive}
-                                                            checked={selectedTriggers.has(ev.name)}
-                                                            onChange={() => toggleTriggerSelection(ev.name)}
-                                                        />
-                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1a1a2e' }}>{ev.name}</div>
-                                                            {isActive && <span style={{ fontSize: '0.7rem', color: '#6366f1' }}>Active</span>}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
-                                        )}
-                                    </div>
-                                    <button
-                                        style={{ width: '100%', fontSize: '0.85rem', padding: '0.7rem', background: selectedTriggers.size === 0 ? '#f1f5f9' : '#1a1a2e', color: selectedTriggers.size === 0 ? '#94a3b8' : '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: selectedTriggers.size === 0 ? 'not-allowed' : 'pointer' }}
-                                        onClick={activateSelected}
-                                        disabled={selectedTriggers.size === 0}
-                                    >
-                                        Activate Selected ({selectedTriggers.size})
-                                    </button>
-                                </div>
+                            {/* Center Crosshairs */}
+                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>
+                                {/* Center Dot */}
+                                <div style={{ width: '4px', height: '4px', background: '#fff', borderRadius: '50%' }} />
+                                {/* Brackets */}
+                                <div style={{ position: 'absolute', width: '400px', height: '250px', border: '2px solid #fff', borderRadius: '12px' }} />
+                                {/* Small inner dashes */}
+                                <div style={{ position: 'absolute', width: '150px', height: '2px', background: 'rgba(255,255,255,0.4)' }} />
+                                <div style={{ position: 'absolute', width: '2px', height: '150px', background: 'rgba(255,255,255,0.4)' }} />
                             </div>
-                        </div>
-                    ) : (
-                        <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-                            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: '#1a1a2e' }}>🗂 Full Detection History</h3>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#94a3b8', fontSize: '0.8rem' }}>
-                                            <th style={{ padding: '1rem' }}>Timestamp</th>
-                                            <th style={{ padding: '1rem' }}>Event Results</th>
-                                            <th style={{ padding: '1rem' }}>Identified Person</th>
-                                            <th style={{ padding: '1rem' }}>Summary</th>
-                                            <th style={{ padding: '1rem' }}>S3 Link</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {history.length === 0 ? (
-                                            <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No history found</td></tr>
-                                        ) : (
-                                            history.map((row, i) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '0.9rem' }}>
-                                                    <td style={{ padding: '1rem', whiteSpace: 'nowrap', color: '#475569' }}>{new Date(row.timestamp).toLocaleString()}</td>
-                                                    <td style={{ padding: '1rem' }}>
-                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                                            {Object.entries(row.results || {}).map(([k, v]) => {
-                                                                const isDetected = typeof v === 'number' ? v > 0 : !!v;
-                                                                const displayValue = typeof v === 'number' ? (v > 0 ? v.toString() : '0') : (v ? 'YES' : 'NO');
-                                                                return (
-                                                                    <span key={k} style={{ padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, background: isDetected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.08)', color: isDetected ? '#16a34a' : '#dc2626', border: `1px solid ${isDetected ? '#bbf7d0' : '#fecaca'}` }}>
-                                                                        {k}: {displayValue}
-                                                                    </span>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '1rem' }}>
-                                                        {row.identified_persons && row.identified_persons.length > 0 ? (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                                                {row.identified_persons.map((person, idx) => (
-                                                                    <span key={idx} style={{
-                                                                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem', width: 'fit-content',
-                                                                        background: person.name === 'Unknown Person' ? '#f1f5f9' : '#eff6ff',
-                                                                        border: `1px solid ${person.name === 'Unknown Person' ? '#cbd5e1' : '#bfdbfe'}`,
-                                                                        borderRadius: '100px', padding: '0.2rem 0.75rem', fontSize: '0.78rem',
-                                                                        color: person.name === 'Unknown Person' ? '#64748b' : '#1d4ed8',
-                                                                        fontWeight: 600,
-                                                                    }}>
-                                                                        {person.name === 'Unknown Person' ? '👤' : '🙋'}
-                                                                        {person.name}
-                                                                        {person.email && <span style={{ fontWeight: 400, marginLeft: '4px' }}>· {person.email}</span>}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        ) : <span style={{ color: '#cbd5e1' }}>—</span>}
-                                                    </td>
-                                                    <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>{row.summary}</td>
-                                                    <td style={{ padding: '1rem' }}>
-                                                        {row.s3_uri && (
-                                                            <a href={row.s3_uri} target="_blank" rel="noreferrer" style={{ color: '#6366f1', fontSize: '0.75rem', textDecoration: 'none' }}>
-                                                                {row.s3_uri.split('/').pop()}
-                                                            </a>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+
+
                         </div>
                     )}
-                </main>
+                    {status !== 'Running' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#9ca3af', gap: '1rem' }}>
+                            <Camera size={48} color="#d1d5db" />
+                            <p style={{ margin: 0 }}>Video feed inactive. Click "Start Surveillance".</p>
+                            <button onClick={startSurveillance} style={darkBtn}>Start Now</button>
+                        </div>
+                    )}
+
+                    {/* Overlay Camera Controls inside video bounds */}
+                    {status === 'Running' && (
+                        <div style={{ position: 'absolute', bottom: '2rem', right: '2rem', zIndex: 10 }}>
+                            <button onClick={() => stopSurveillance()} style={{ ...darkBtn, backgroundColor: '#ef4444', border: '1px solid #7f1d1d', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                                <StopCircle size={16} fill="#fff" /> Stop Recording
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* MODALS */}
+            
+            {/* Add Event Modal */}
+            {showAddModal && (
+                <div style={azureModalStyle}>
+                    <div style={azureModalContentStyle}>
+                        <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#111827', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Plus size={20} color="#f97316" /> Configure Event Evaluator
+                            </h2>
+                            <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} color="#6b7280" /></button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', padding: '2rem', justifyContent: 'center' }}>
+                            {/* Create New */}
+                            <div style={{ flex: 1, maxWidth: '600px' }}>
+                                <h3 style={{ fontSize: '1rem', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>Create Custom Event Analyzer</h3>
+                                <form onSubmit={addEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#4b5563', marginBottom: '0.4rem' }}>Event Identifier (snake_case)</label>
+                                        <input type="text" value={newEventName} onChange={e => setNewEventName(e.target.value)} required placeholder="e.g. unknown_person_entered" style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', outline: 'none', fontSize: '0.9rem' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#4b5563', marginBottom: '0.4rem' }}>Condition Description</label>
+                                        <input type="text" value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} required placeholder="e.g. A person is seen entering the restricted area" style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', outline: 'none', fontSize: '0.9rem' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#4b5563', marginBottom: '0.4rem' }}>
+                                            Authorized Employees (Select allowed persons)
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search employees..." 
+                                            value={employeeSearch}
+                                            onChange={e => setEmployeeSearch(e.target.value)}
+                                            style={{ width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', outline: 'none', fontSize: '0.85rem', marginBottom: '0.5rem' }} 
+                                        />
+                                        <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #d1d5db', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            {employees.length === 0 ? <p style={{fontSize: '0.8rem', color: '#9ca3af', margin: 0}}>No employees found.</p> : 
+                                             employees.filter(emp => emp.name.toLowerCase().includes(employeeSearch.toLowerCase())).map(emp => (
+                                                <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: '#111827' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={newEventAuthEmps.includes(emp.name)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setNewEventAuthEmps(prev => [...prev, emp.name]);
+                                                            else setNewEventAuthEmps(prev => prev.filter(n => n !== emp.name));
+                                                        }}
+                                                    />
+                                                    {emp.name}
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.4rem', margin: 0 }}>If set, anyone else performing this action will raise an Intrusion Alert.</p>
+                                    </div>
+                                    <button type="submit" style={{ ...orangeBtn, alignSelf: 'flex-start', marginTop: '0.5rem' }}>Register Event</button>
+                                </form>
+                            </div>
+                            
+                            {/* Existing Events List */}
+                            <div style={{ flex: 1, maxWidth: '400px', marginLeft: '2rem', borderLeft: '1px solid #e5e7eb', paddingLeft: '2rem' }}>
+                                <h3 style={{ fontSize: '1rem', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>Configured Events</h3>
+                                {events.length === 0 ? (
+                                    <p style={{ fontSize: '0.85rem', color: '#9ca3af', margin: 0 }}>No active triggers.</p>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {events.map(ev => (
+                                            <div key={ev.name} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid #f3f4f6' }}>
+                                                <div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#111827' }}>{ev.name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem' }}>
+                                                        {ev.authorized_employees ? `Auth: ${ev.authorized_employees.length}` : 'No restrictions'}
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => deleteEvent(ev.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }} title="Delete Event">
+                                                    <Trash2 size={16} color="#ef4444" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View History Modal */}
+            {showHistoryModal && (
+                <div style={azureModalStyle}>
+                    <div style={{ ...azureModalContentStyle, maxWidth: '1200px' }}>
+                        <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#111827', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <History size={20} color="#f97316" /> Global Surveillance History
+                            </h2>
+                            <button onClick={() => setShowHistoryModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} color="#6b7280" /></button>
+                        </div>
+                        <div style={{ padding: '2rem' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid #e5e7eb', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        <th style={{ padding: '0.75rem' }}>Time</th>
+                                        <th style={{ padding: '0.75rem' }}>Detected Entities</th>
+                                        <th style={{ padding: '0.75rem' }}>Identities</th>
+                                        <th style={{ padding: '0.75rem' }}>Context Summary</th>
+                                        <th style={{ padding: '0.75rem' }}>Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {history.map((row, i) => (
+                                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                            <td style={{ padding: '1rem', color: '#4b5563', whiteSpace: 'nowrap' }}>{new Date(row.timestamp).toLocaleString()}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                                    {Object.entries(row.results || {}).map(([k, v]) => {
+                                                        const isDetected = typeof v === 'number' ? v > 0 : !!v;
+                                                        if (!isDetected) return null;
+                                                        return <span key={k} style={{ padding: '0.1rem 0.5rem', background: '#fff7ed', border: '1px solid #fdba74', color: '#ea580c' }}>{k}</span>;
+                                                    })}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1rem', color: '#111827' }}>
+                                                {(row.identified_persons || []).map((p, idx) => (
+                                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                        <Users size={12} color="#f97316"/> {p.name}
+                                                    </div>
+                                                ))}
+                                            </td>
+                                            <td style={{ padding: '1rem', color: '#6b7280' }}>{row.summary}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                {row.s3_uri && <a href={row.s3_uri} target="_blank" style={{ color: '#f97316', textDecoration: 'none' }}>View Media</a>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     );
 }

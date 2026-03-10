@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import CallAgentPage from './pages/CallAgentPage';
 import LeadsPage from './pages/LeadsPage';
+import FunctionsPage from './pages/FunctionsPage';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/agent" element={<CallAgentPage />} />
         <Route path="/leads" element={<LeadsPage />} />
+        <Route path="/functions" element={<FunctionsPage />} />
         {/* Redirect unknown paths to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

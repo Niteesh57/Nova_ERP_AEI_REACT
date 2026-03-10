@@ -361,7 +361,7 @@ const inputStyle: React.CSSProperties = {
 
 const primaryBtn: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: '0.375rem',
-    background: '#111', color: '#fff', border: 'none',
+    background: '#2563eb', color: '#fff', border: 'none',
     borderRadius: '8px', padding: '0.55rem 1rem',
     fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
     whiteSpace: 'nowrap',

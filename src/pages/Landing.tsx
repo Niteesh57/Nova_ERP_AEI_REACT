@@ -85,9 +85,9 @@ const modules = [
   },
   {
     icon: <Target size={26} />,
-    title: 'Lead Generation Automation',
-    desc: 'Targeted outbound intelligence. Nova identifies audience signals by role, industry, and tech stack, scores leads, and drafts hyper-personalized outreach — no spam.',
-    tags: ['CTO / DevOps Engineer', 'Tech Stack Match', 'Lead Scoring', 'Personalized Email'],
+    title: 'Vendor Search Automation',
+    desc: 'Targeted outbound intelligence. Nova identifies audience signals by role, industry, and tech stack, scores vendors, and drafts hyper-personalized outreach — no spam.',
+    tags: ['Vendor Match', 'Tech Stack Match', 'Vendor Scoring', 'Automated Outreach'],
   },
   {
     icon: <Cpu size={26} />,
@@ -379,7 +379,7 @@ export default function Landing() {
                   }}
                 >
                   Join forward-thinking enterprises using NOVA ERP to autonomously secure
-                  facilities, resolve tickets, capture leads, and optimize cloud operations.
+                  facilities, resolve tickets, capture vendors, and optimize cloud operations.
                 </p>
                 <button className="btn btn-primary" style={{ padding: '1rem 2.5rem', fontSize: '1.05rem' }}>
                   Deploy NOVA Today <ArrowRight size={18} />
