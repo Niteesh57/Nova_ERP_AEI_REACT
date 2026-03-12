@@ -401,6 +401,48 @@ h4 {
   }
 }
 
+/* ── Loading Screen ── */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg-page);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+.loading-screen.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loading-logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  animation: spin 3s linear infinite, glowPulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glowPulse {
+  from {
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2));
+  }
+  to {
+    filter: drop-shadow(0 0 35px rgba(255, 255, 255, 0.9));
+  }
+}
+
+/* ── blink ── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.blink {
+  animation: blink 1s step-end infinite;
+}
+
 /* ── footer ── */
 footer {
   padding: 2.5rem 0;

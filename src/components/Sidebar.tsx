@@ -34,8 +34,6 @@ export default function Sidebar() {
                 gap: '0.625rem',
             }}>
                 <div style={{
-                    background: '#ea580c',
-                    borderRadius: '8px',
                     width: '32px',
                     height: '32px',
                     display: 'flex',
@@ -43,10 +41,10 @@ export default function Sidebar() {
                     justifyContent: 'center',
                     flexShrink: 0,
                 }}>
-                    <Activity size={16} color="#fff" strokeWidth={2.5} />
+                    <img src="/nova.png" alt="Autonomous Nova" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
                 <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111', lineHeight: 1.2 }}>NOVA ERP</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111', lineHeight: 1.2, textTransform: 'uppercase' }}>Autonomous Nova</div>
                     <div style={{ fontSize: '0.7rem', color: '#6b7280', letterSpacing: '0.05em' }}>Intelligence Suite</div>
                 </div>
             </div>
@@ -82,7 +80,7 @@ export default function Sidebar() {
 
             {/* Footer */}
             <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #e5e7eb', fontSize: '0.7rem', color: '#9ca3af' }}>
-                © 2026 Nova AEI
+                © 2026 Autonomous Nova
             </div>
         </aside>
     );

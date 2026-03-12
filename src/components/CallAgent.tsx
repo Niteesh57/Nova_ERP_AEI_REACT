@@ -38,7 +38,7 @@ export default function CallAgent() {
 
   // Audio Processing Constants
   const INPUT_SAMPLE_RATE = 16000;
-  const OUTPUT_SAMPLE_RATE = 24000; // Expected from Bedrock
+  const OUTPUT_SAMPLE_RATE = 16000; // Expected from Bedrock
 
   useEffect(() => {
     fetchSessions();
@@ -227,7 +227,7 @@ export default function CallAgent() {
 
        // Schedule gapless playback
        if (scheduledTime.current < audioContext.current.currentTime) {
-           scheduledTime.current = audioContext.current.currentTime + 0.05; // 50ms buffer
+           scheduledTime.current = audioContext.current.currentTime + 0.1; // 100ms jitter buffer
        }
        source.start(scheduledTime.current);
        scheduledTime.current += audioBuffer.duration;
