@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Activity, Camera, Square as StopCircle, Plus, Trash2, X, History, Users } from 'lucide-react';
+import { Activity, Camera, Square as StopCircle, Plus, Trash2, X, History, Users, Upload, Loader2 } from 'lucide-react';
 import Layout from '../components/Layout';
 import '../index.css';
 
@@ -25,8 +25,8 @@ interface LogEntry {
     alerts?: string[] | null;
 }
 
-const API_BASE = 'http://localhost:8000';
-const WS_URL = 'ws://localhost:8000/ws';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const WS_URL = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws`;
 
 export default function Console() {
     // Core state
@@ -40,6 +40,9 @@ export default function Console() {
     // Data state
     const [employees, setEmployees] = useState<IdentifiedPerson[]>([]);
     const [history, setHistory] = useState<LogEntry[]>([]);
+    const [isFullView, setIsFullView] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [manualResult, setManualResult] = useState<LogEntry | null>(null);
 
     // New event form state
     const [newEventName, setNewEventName] = useState('');
@@ -53,6 +56,7 @@ export default function Console() {
     const recordedChunksRef = useRef<Blob[]>([]);
     const wsRef = useRef<WebSocket | null>(null);
     const isRecordingRef = useRef(false);
+    const uploadInputRef = useRef<HTMLInputElement>(null);
 
     const CHUNK_MS = 30000; // 30 seconds
 
@@ -226,6 +230,37 @@ export default function Console() {
         } catch (err) { console.error("Upload failed", err); }
     };
 
+    const handleManualUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        setManualResult(null);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch(`${API_BASE}/surveillance/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setManualResult(data);
+                loadHistory(); // Refresh history to show the new analysis
+            } else {
+                alert(data.detail || 'Upload failed');
+            }
+        } catch (err) {
+            console.error("Manual upload failed", err);
+            alert('Failed to upload video');
+        } finally {
+            setIsUploading(false);
+            if (uploadInputRef.current) uploadInputRef.current.value = '';
+        }
+    };
+
     const startSurveillance = async () => {
         if (status === 'Running') return;
         const camReady = await initCamera();
@@ -320,11 +355,32 @@ export default function Console() {
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
+                        <input 
+                            type="file" 
+                            ref={uploadInputRef} 
+                            onChange={handleManualUpload} 
+                            accept="video/*" 
+                            style={{ display: 'none' }} 
+                        />
+                        <button 
+                            onClick={() => uploadInputRef.current?.click()} 
+                            style={outlineBtn} 
+                            disabled={isUploading}
+                        >
+                            {isUploading ? (
+                                <> <Loader2 size={16} className="spin" /> Processing... </>
+                            ) : (
+                                <> <Upload size={16} /> Upload Video </>
+                            )}
+                        </button>
                         <button onClick={() => setShowAddModal(true)} style={orangeBtn}>
                             <Plus size={16} /> Add Event
                         </button>
                         <button onClick={() => { setShowHistoryModal(true); loadHistory(); }} style={outlineBtn}>
                             <History size={16} color="#6b7280" /> View History
+                        </button>
+                        <button onClick={() => setIsFullView(!isFullView)} style={outlineBtn}>
+                            <Camera size={16} color="#6b7280" /> {isFullView ? 'Exit Full View' : 'Full View'}
                         </button>
                     </div>
                 </div>
@@ -337,7 +393,42 @@ export default function Console() {
                     }
                 `}</style>
                 {/* Video Area Full Width */}
-                <div style={{ position: 'absolute', top: '70px', left: '2rem', right: '2rem', bottom: '2rem', background: '#000', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ 
+                    position: isFullView ? 'fixed' : 'absolute', 
+                    top: isFullView ? 0 : '70px', 
+                    left: isFullView ? 0 : '2rem', 
+                    right: isFullView ? 0 : '2rem', 
+                    bottom: isFullView ? 0 : '2rem', 
+                    background: '#000', 
+                    borderRadius: isFullView ? '0px' : '8px', 
+                    overflow: 'hidden', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    zIndex: isFullView ? 1000 : 1,
+                    transition: 'all 0.3s ease'
+                }}>
+                    {isFullView && (
+                        <button 
+                            onClick={() => setIsFullView(false)} 
+                            style={{ 
+                                position: 'absolute', 
+                                top: '2rem', 
+                                right: '2rem', 
+                                zIndex: 1010, 
+                                background: 'rgba(0,0,0,0.5)', 
+                                border: '1px solid rgba(255,255,255,0.3)', 
+                                color: '#fff', 
+                                padding: '0.5rem', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <X size={24} />
+                        </button>
+                    )}
                     <video
                         ref={videoRef}
                         autoPlay muted playsInline
@@ -536,6 +627,67 @@ export default function Console() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Manual Analysis Result Modal */}
+            {manualResult && (
+                <div style={azureModalStyle}>
+                    <div style={{ ...azureModalContentStyle, maxWidth: '600px' }}>
+                        <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#111827', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Activity size={20} color="#f97316" /> Analysis Result
+                            </h2>
+                            <button onClick={() => setManualResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} color="#6b7280" /></button>
+                        </div>
+                        <div style={{ padding: '2rem' }}>
+                            <p style={{ fontSize: '0.9rem', color: '#4b5563', marginBottom: '1.5rem' }}>{manualResult.summary}</p>
+                            
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#111827', marginBottom: '0.75rem' }}>Triggered Events:</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    {Object.entries(manualResult.results || {}).map(([k, v]) => {
+                                        const isDetected = typeof v === 'number' ? v > 0 : !!v;
+                                        if (!isDetected) return null;
+                                        return (
+                                            <span key={k} style={{ padding: '0.2rem 0.6rem', background: '#fff7ed', border: '1px solid #fdba74', color: '#ea580c', fontSize: '0.8rem' }}>
+                                                {k} ({typeof v === 'number' ? v : 'Yes'})
+                                            </span>
+                                        );
+                                    })}
+                                    {Object.values(manualResult.results || {}).every(v => v === 0 || v === false) && (
+                                        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>No events triggered.</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {manualResult.identified_persons && manualResult.identified_persons.length > 0 && (
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#111827', marginBottom: '0.75rem' }}>Identified Persons:</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        {manualResult.identified_persons.map((p, idx) => (
+                                            <div key={idx} style={{ fontSize: '0.85rem', color: '#111827', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <Users size={14} color="#f97316" /> {p.name} {p.email ? `(${p.email})` : ''}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {manualResult.alerts && manualResult.alerts.length > 0 && (
+                                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fef2f2', border: '1px solid #fca5a5' }}>
+                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', marginBottom: '0.5rem' }}>Alerts:</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        {manualResult.alerts.map((alert, idx) => (
+                                            <div key={idx} style={{ fontSize: '0.8rem', color: '#b91c1c' }}>• {alert}</div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <button onClick={() => setManualResult(null)} style={{ ...darkBtn, width: '100%', justifyContent: 'center' }}>Close Analysis</button>
                         </div>
                     </div>
                 </div>

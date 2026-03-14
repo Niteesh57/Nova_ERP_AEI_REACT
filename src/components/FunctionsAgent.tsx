@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Code, ShieldCheck, DollarSign, Paperclip, Send, X, ChevronDown, ChevronRight, Plus, Loader2 } from 'lucide-react';
 
-const HTTP_BASE = 'http://localhost:8000';
+const HTTP_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

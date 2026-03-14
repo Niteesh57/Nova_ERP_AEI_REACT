@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { UserCircle2, Upload, Mail, User, Pencil, Trash2, Check, X, Loader2, Users } from 'lucide-react';
 import Layout from '../components/Layout';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Employee {

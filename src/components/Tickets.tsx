@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 
 interface Ticket {
     id: number;
     product_name: string;
-    user_facing_issue: string;
     user_facing_issue: string;
     is_resolved: boolean;
     is_vectorized: boolean;

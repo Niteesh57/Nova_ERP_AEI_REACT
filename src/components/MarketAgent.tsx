@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Target, Play, Loader2, CheckCircle, XCircle, Clock, Globe, Search, ListChecks, DollarSign, BrainCircuit, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 
 interface MarketResult {
   id: number;
