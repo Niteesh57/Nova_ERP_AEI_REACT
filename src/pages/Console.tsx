@@ -385,13 +385,7 @@ export default function Console() {
                     </div>
                 </div>
 
-                <style>{`
-                    @keyframes pulse {
-                        0% { opacity: 1; transform: scale(1); }
-                        50% { opacity: 0.3; transform: scale(0.9); }
-                        100% { opacity: 1; transform: scale(1); }
-                    }
-                `}</style>
+
                 {/* Video Area Full Width */}
                 <div style={{ 
                     position: isFullView ? 'fixed' : 'absolute', 
@@ -432,46 +426,9 @@ export default function Console() {
                     <video
                         ref={videoRef}
                         autoPlay muted playsInline
-                        // DSLR style contrast/greyscale hint, fit cover to fill screen
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'Running' ? 'block' : 'none' /*, filter: 'contrast(1.05) brightness(0.95)'*/ }}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: status === 'Running' ? 'block' : 'none' }}
                     />
-                    
-                    {/* DSLR Overlay Wrapper */}
-                    {status === 'Running' && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', padding: '2rem', color: '#fff', fontFamily: 'monospace', zIndex: 5 }}>
-                            {/* REC & Timer */}
-                            <div style={{ position: 'absolute', top: '2rem', left: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite' }} />
-                                <span style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.1em' }}>REC</span>
-                                <span style={{ fontSize: '1.25rem', marginLeft: '1rem', fontVariantNumeric: 'tabular-nums' }}>
-                                    {new Date().toISOString().substring(11, 19)}
-                                </span>
-                            </div>
 
-                            {/* Camera Info Top Right */}
-                            <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '1.2rem', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                                <span>F2.8</span>
-                                <span>1/60</span>
-                                <span>ISO 800</span>
-                                <div style={{ border: '2px solid #fff', width: '34px', height: '16px', padding: '2px', borderRadius: '2px' }}>
-                                    <div style={{ background: '#fff', width: '75%', height: '100%' }} />
-                                </div>
-                            </div>
-
-                            {/* Center Crosshairs */}
-                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>
-                                {/* Center Dot */}
-                                <div style={{ width: '4px', height: '4px', background: '#fff', borderRadius: '50%' }} />
-                                {/* Brackets */}
-                                <div style={{ position: 'absolute', width: '400px', height: '250px', border: '2px solid #fff', borderRadius: '12px' }} />
-                                {/* Small inner dashes */}
-                                <div style={{ position: 'absolute', width: '150px', height: '2px', background: 'rgba(255,255,255,0.4)' }} />
-                                <div style={{ position: 'absolute', width: '2px', height: '150px', background: 'rgba(255,255,255,0.4)' }} />
-                            </div>
-
-
-                        </div>
-                    )}
                     {status !== 'Running' && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#9ca3af', gap: '1rem' }}>
                             <Camera size={48} color="#d1d5db" />

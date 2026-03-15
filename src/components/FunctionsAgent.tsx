@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Code, ShieldCheck, DollarSign, Paperclip, Send, X, ChevronDown, ChevronRight, Plus, Loader2 } from 'lucide-react';
+import { marked } from 'marked';
 
 const HTTP_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -131,6 +132,9 @@ export default function FunctionsAgent() {
   const activeAgent = AGENTS.find(a => a.id === selectedAgent)!;
   const currentMessages = messages[selectedAgent];
 
+  const supportsUserStories = (id: AgentType) => id !== 'cost_optimizer';
+  const canAttach = supportsUserStories(selectedAgent);
+
   const switchAgent = (agentId: AgentType) => {
     setSelectedAgent(agentId);
     setInput('');
@@ -152,7 +156,7 @@ export default function FunctionsAgent() {
 
   const buildPrompt = (): string => {
     const parts: string[] = [];
-    if (attachedStories.length > 0) {
+    if (canAttach && attachedStories.length > 0) {
       parts.push('=== ATTACHED USER STORIES ===');
       attachedStories.forEach((s, i) => {
         parts.push(`\n[Story ${i + 1}] ${s.title} (${s.product_name})${s.tag ? ` [${s.tag}]` : ''}`);
@@ -442,11 +446,14 @@ export default function FunctionsAgent() {
                     lineHeight: 1.6,
                     border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                    whiteSpace: 'pre-wrap',
+                    whiteSpace: msg.role === 'user' ? 'pre-wrap' : 'normal',
                     wordBreak: 'break-word',
                   }}
                 >
-                  {msg.content}
+                  <div 
+                    className="markdown-content"
+                    dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }}
+                  />
                   {msg.isStreaming && <span style={{ display: 'inline-block', width: '8px', height: '14px', background: activeAgent.color, marginLeft: '3px', verticalAlign: 'middle', borderRadius: '2px', animation: 'blink 1s infinite' }} />}
                 </div>
               </div>
@@ -458,7 +465,7 @@ export default function FunctionsAgent() {
         {/* Input bar */}
         <div style={{ padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
           {/* Attached story pills */}
-          {attachedStories.length > 0 && (
+          {canAttach && attachedStories.length > 0 && (
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               {attachedStories.map(s => (
                 <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '0.75rem', color: '#374151' }}>
@@ -471,14 +478,16 @@ export default function FunctionsAgent() {
           )}
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-            <button
-              onClick={() => setShowAttachModal(true)}
-              title="Attach User Stories"
-              style={{ flexShrink: 0, padding: '0.625rem', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
-            >
-              <Paperclip size={15} />
-              {attachedStories.length > 0 && <span style={{ background: activeAgent.color, color: '#fff', borderRadius: '9999px', padding: '1px 6px', fontSize: '0.65rem' }}>{attachedStories.length}</span>}
-            </button>
+            {canAttach && (
+              <button
+                onClick={() => setShowAttachModal(true)}
+                title="Attach User Stories"
+                style={{ flexShrink: 0, padding: '0.625rem', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                <Paperclip size={15} />
+                {attachedStories.length > 0 && <span style={{ background: activeAgent.color, color: '#fff', borderRadius: '9999px', padding: '1px 6px', fontSize: '0.65rem' }}>{attachedStories.length}</span>}
+              </button>
+            )}
 
             <textarea
               ref={textareaRef}
@@ -518,39 +527,41 @@ export default function FunctionsAgent() {
       </div>
 
       {/* ── Right Panel: Attached Context ── */}
-      <div style={{ width: '280px', background: '#fff', borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: '1.25rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: '#111' }}>Attached Context</h4>
-          <button
-            onClick={() => setShowAttachModal(true)}
-            style={{ background: activeAgent.color, color: '#fff', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            <Plus size={12} /> Attach
-          </button>
-        </div>
+      {canAttach && (
+        <div style={{ width: '280px', background: '#fff', borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={{ padding: '1.25rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: '#111' }}>Attached Context</h4>
+            <button
+              onClick={() => setShowAttachModal(true)}
+              style={{ background: activeAgent.color, color: '#fff', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Plus size={12} /> Attach
+            </button>
+          </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
-          {attachedStories.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem', marginTop: '2rem' }}>
-              No stories attached yet.<br />Click Attach to add context.
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {attachedStories.map(story => (
-                <div key={story.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.75rem', fontSize: '0.8rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                    <span style={{ fontWeight: 600, color: '#111', lineHeight: 1.3, flex: 1 }}>{story.title}</span>
-                    <button onClick={() => toggleAttachStory(story)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0 0 0 4px', flexShrink: 0 }}><X size={13} /></button>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
+            {attachedStories.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.8rem', marginTop: '2rem' }}>
+                No stories attached yet.<br />Click Attach to add context.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {attachedStories.map(story => (
+                  <div key={story.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.75rem', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
+                      <span style={{ fontWeight: 600, color: '#111', lineHeight: 1.3, flex: 1 }}>{story.title}</span>
+                      <button onClick={() => toggleAttachStory(story)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0 0 0 4px', flexShrink: 0 }}><X size={13} /></button>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>{story.product_name}</span>
+                    {story.tag && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', background: '#f1f5f9', color: '#374151', padding: '1px 6px', borderRadius: '9999px' }}>{story.tag}</span>}
+                    {story.description && <p style={{ margin: '0.375rem 0 0', color: '#6b7280', lineHeight: 1.4, fontSize: '0.75rem' }}>{story.description}</p>}
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>{story.product_name}</span>
-                  {story.tag && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', background: '#f1f5f9', color: '#374151', padding: '1px 6px', borderRadius: '9999px' }}>{story.tag}</span>}
-                  {story.description && <p style={{ margin: '0.375rem 0 0', color: '#6b7280', lineHeight: 1.4, fontSize: '0.75rem' }}>{story.description}</p>}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Agent Confirmation Modal ── */}
       {confirmRequest && (
@@ -687,6 +698,54 @@ export default function FunctionsAgent() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        .markdown-content {
+          line-height: 1.5;
+        }
+        .markdown-content p { margin: 0 0 0.75rem; }
+        .markdown-content p:last-child { margin-bottom: 0; }
+        .markdown-content code {
+          background: #f1f5f9;
+          padding: 0.2rem 0.4rem;
+          border-radius: 4px;
+          font-family: 'JetBrains Mono', 'Fira Code', monospace;
+          font-size: 0.85em;
+        }
+        .markdown-content pre {
+          background: #1e293b;
+          color: #f8fafc;
+          padding: 1rem;
+          border-radius: 8px;
+          overflow-x: auto;
+          margin: 0.75rem 0;
+        }
+        .markdown-content pre code {
+          background: transparent;
+          padding: 0;
+          color: inherit;
+          font-size: 0.85rem;
+        }
+        .markdown-content ul, .markdown-content ol {
+          margin: 0.5rem 0 1rem 1.25rem;
+        }
+        .markdown-content li { margin-bottom: 0.25rem; }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+          margin: 1.25rem 0 0.75rem;
+          font-weight: 700;
+          line-height: 1.3;
+        }
+        .markdown-content table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1rem 0;
+          font-size: 0.8rem;
+        }
+        .markdown-content th, .markdown-content td {
+          border: 1px solid #e2e8f0;
+          padding: 0.5rem;
+          text-align: left;
+        }
+        .markdown-content th { background: #f8fafc; }
       `}} />
     </div>
   );
